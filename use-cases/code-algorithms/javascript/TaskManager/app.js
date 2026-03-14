@@ -1,13 +1,20 @@
 // app.js
-const { Task, TaskPriority, TaskStatus } = require('./models');
-const { TaskStorage } = require('./storage');
+const { Task, TaskPriority, TaskStatus } = require("./models");
+const { TaskStorage } = require("./storage");
+const fs = require("fs");
 
 class TaskManager {
-  constructor(storagePath = 'tasks.json') {
+  constructor(storagePath = "tasks.json") {
     this.storage = new TaskStorage(storagePath);
   }
 
-  createTask(title, description = "", priorityValue = 2, dueDateStr = null, tags = []) {
+  createTask(
+    title,
+    description = "",
+    priorityValue = 2,
+    dueDateStr = null,
+    tags = [],
+  ) {
     const priority = priorityValue;
     let dueDate = null;
 
@@ -26,6 +33,58 @@ class TaskManager {
     const task = new Task(title, description, priority, dueDate, tags);
     const taskId = this.storage.addTask(task);
     return taskId;
+  }
+
+  exportTasksToCSV(filename, options = {}) {
+    const allTasks = this.storage.getAllTasks();
+
+    // Apply optional filters
+    let tasksToExport = allTasks;
+    if (options.status) {
+      tasksToExport = tasksToExport.filter((t) => t.status === options.status);
+    }
+    if (options.priority) {
+      tasksToExport = tasksToExport.filter(
+        (t) => t.priority === parseInt(options.priority),
+      );
+    }
+
+    // CSV header
+    const headers = [
+      "ID",
+      "Title",
+      "Description",
+      "Status",
+      "Priority",
+      "Due Date",
+      "Tags",
+      "Created At",
+      "Updated At",
+      "Completed At",
+    ];
+
+    const csvRows = [headers.join(",")];
+
+    // Build CSV rows
+    tasksToExport.forEach((task) => {
+      const row = [
+        task.id,
+        `"${task.title}"`,
+        `"${task.description || ""}"`,
+        task.status,
+        task.priority,
+        task.dueDate ? task.dueDate.toISOString() : "",
+        `"${(task.tags || []).join(";")}"`,
+        task.createdAt ? task.createdAt.toISOString() : "",
+        task.updatedAt ? task.updatedAt.toISOString() : "",
+        task.completedAt ? task.completedAt.toISOString() : "",
+      ];
+      csvRows.push(row.join(","));
+    });
+
+    // Write CSV
+    fs.writeFileSync(filename, csvRows.join("\n"));
+    return true;
   }
 
   listTasks(statusFilter = null, priorityFilter = null, showOverdue = false) {
@@ -59,7 +118,9 @@ class TaskManager {
   }
 
   updateTaskPriority(taskId, newPriorityValue) {
-    return this.storage.updateTask(taskId, { priority: parseInt(newPriorityValue) });
+    return this.storage.updateTask(taskId, {
+      priority: parseInt(newPriorityValue),
+    });
   }
 
   updateTaskDueDate(taskId, dueDateStr) {
@@ -98,7 +159,7 @@ class TaskManager {
   removeTagFromTask(taskId, tag) {
     const task = this.storage.getTask(taskId);
     if (task && task.tags.includes(tag)) {
-      task.tags = task.tags.filter(t => t !== tag);
+      task.tags = task.tags.filter((t) => t !== tag);
       this.storage.save();
       return true;
     }
@@ -115,29 +176,32 @@ class TaskManager {
       return acc;
     }, {});
 
-    tasks.forEach(task => {
+    tasks.forEach((task) => {
       statusCounts[task.status]++;
     });
 
     // Count by priority
-    const priorityCounts = Object.values(TaskPriority).reduce((acc, priority) => {
-      acc[priority] = 0;
-      return acc;
-    }, {});
+    const priorityCounts = Object.values(TaskPriority).reduce(
+      (acc, priority) => {
+        acc[priority] = 0;
+        return acc;
+      },
+      {},
+    );
 
-    tasks.forEach(task => {
+    tasks.forEach((task) => {
       priorityCounts[task.priority]++;
     });
 
     // Count overdue
-    const overdueTasks = tasks.filter(task => task.isOverdue());
+    const overdueTasks = tasks.filter((task) => task.isOverdue());
 
     // Count completed in last 7 days
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const completedRecently = tasks.filter(task =>
-      task.completedAt && task.completedAt >= sevenDaysAgo
+    const completedRecently = tasks.filter(
+      (task) => task.completedAt && task.completedAt >= sevenDaysAgo,
     );
 
     return {
@@ -145,7 +209,7 @@ class TaskManager {
       byStatus: statusCounts,
       byPriority: priorityCounts,
       overdue: overdueTasks.length,
-      completedLastWeek: completedRecently.length
+      completedLastWeek: completedRecently.length,
     };
   }
 }

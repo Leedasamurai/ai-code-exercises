@@ -7,7 +7,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "commander": "^9.0.0",
+    "commander": "^9.5.0",
     "uuid": "^8.3.2"
   },
   "devDependencies": {
